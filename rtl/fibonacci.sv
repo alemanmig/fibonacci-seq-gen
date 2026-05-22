@@ -105,30 +105,6 @@ module fib_gen #(
   // ---------------------------------------------------------------------------
   assign fib_out = a;
 
-  // ---------------------------------------------------------------------------
-  // Assertions (inline, for simulation only)
-  //
-  // These are companion checks to the SVA checker in verification/.
-  // Synthesis tools should strip them automatically; for explicit exclusion
-  // wrap with `ifndef SYNTHESIS ... `endif if required by the flow.
-  // ---------------------------------------------------------------------------
-
-  // After reset is released fib_out must be 0.
-  // RST-001
-  `ifndef SYNTHESIS
-  assert_rst_out_zero : assert property (
-    @(posedge clk) disable iff (!rst_n)
-    ($rose(rst_n) |-> (fib_out == '0))
-  ) else $error("[fib_gen] RST-001 FAIL: fib_out is not 0 after reset release");
-
-  // fib_out must not change while enable is de-asserted.
-  // HLD-001
-  assert_hold_stable : assert property (
-    @(posedge clk) disable iff (!rst_n)
-    (!enable |=> $stable(fib_out))
-  ) else $error("[fib_gen] HLD-001 FAIL: fib_out changed while enable=0");
-  `endif
-
 endmodule : fib_gen
 
 `default_nettype wire
