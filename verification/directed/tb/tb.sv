@@ -10,7 +10,8 @@
 // Description
 // -----------
 // Top-level testbench. Instantiates the clock generator, the virtual interface,
-// the DUT (fibonacci), the SVA checker (via bind), and the test module.
+// the DUT (fibonacci), the SVA checker and functional coverage collector
+// (both via bind), and the test module.
 //
 // Clock : 100 MHz  (period = 10 ns, half-period = 5 ns)
 //
@@ -60,6 +61,22 @@ module tb;
   // The bind wires the checker to the DUT's internal signals.
   // ---------------------------------------------------------------------------
   bind dut sva #(.W(W)) dut_sva (
+    .clk_i     (clk_i),
+    .rst_ni    (rst_ni),
+    .enable_i  (enable_i),
+    .fib_out_o (fib_out_o),
+    .a_i       (a),        // internal state register — visible in DUT scope
+    .b_i       (b)         // internal state register — visible in DUT scope
+  );
+
+  // ---------------------------------------------------------------------------
+  // Functional coverage collector — bound into the DUT scope
+  //
+  // Completely independent of sva.sv and the testbench: a bug in the coverage
+  // module cannot mask assertion failures or corrupt test stimulus.
+  // fcover.sv must be compiled and present in the filelist (sve.f).
+  // ---------------------------------------------------------------------------
+  bind dut fcover #(.W(W)) dut_fcover (
     .clk_i     (clk_i),
     .rst_ni    (rst_ni),
     .enable_i  (enable_i),
