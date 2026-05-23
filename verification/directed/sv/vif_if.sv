@@ -46,18 +46,13 @@ interface vif_if #(
   // Use cb.enable_i and cb.fib_out_o inside clocked tasks/test sequences
   // to guarantee setup/hold timing relative to clk_i.
   // ---------------------------------------------------------------------------
-  clocking cb @(posedge clk_i);
+  /*clocking cb @(posedge clk_i);
     default input #1step output #1ns;
     output enable_i;
     input  fib_out_o;
   endclocking : cb
 
-  // Modport for the test / driver layer (drives enable, reads output).
-  modport tb_mp (
-    clocking cb,
-    output   rst_ni,
-    input    clk_i
-  );
+  */
 
 endinterface : vif_if
 

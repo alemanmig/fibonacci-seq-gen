@@ -37,7 +37,7 @@
 module test #(
   parameter int unsigned W = 32
 ) (
-  vif_if.tb_mp vif
+  vif_if vif
 );
 
   import config_pkg::*;
@@ -145,7 +145,7 @@ module test #(
 
   task automatic initialize_signals();
     vif.rst_ni         = 1'b1;
-    vif.cb.enable_i   <= 1'b0;
+    vif.enable_i   <= 1'b0;
   endtask : initialize_signals
 
   // Apply asynchronous reset for reset_cycles clock periods, then release.
@@ -164,7 +164,7 @@ module test #(
     input logic        check    = 1'b1
   );
     repeat (cycles) begin
-      vif.cb.enable_i <= 1'b1;
+      vif.enable_i <= 1'b1;
       @(posedge vif.clk_i);
       #1step;                    // wait past clock edge before sampling
       ref_step();
@@ -179,7 +179,7 @@ module test #(
     input logic        check   = 1'b1
   );
     logic [W-1:0] held_val;
-    vif.cb.enable_i <= 1'b0;
+    vif.enable_i <= 1'b0;
     @(posedge vif.clk_i);
     #1step;
     held_val = vif.fib_out_o;   // capture value to check stability
@@ -216,7 +216,7 @@ module test #(
     // Reach an advanced state first.
     apply_reset();
     drive_enable(6, "TC-RST-01-advance", .check(1'b0));
-    vif.cb.enable_i <= 1'b0;
+    vif.enable_i <= 1'b0;
 
     // Assert reset asynchronously (between clock edges).
     #3ns;
@@ -245,7 +245,7 @@ module test #(
     drive_enable(6, "TC-RST-02-advance", .check(1'b0));
 
     // Deassert enable then assert reset.
-    vif.cb.enable_i <= 1'b0;
+    vif.enable_i <= 1'b0;
     @(posedge vif.clk_i);
     vif.rst_ni = 1'b0;
     ref_reset();
@@ -302,7 +302,7 @@ module test #(
     prev1 = '0;          // F(0)
 
     repeat (20) begin
-      vif.cb.enable_i <= 1'b1;
+      vif.enable_i <= 1'b1;
       @(posedge vif.clk_i);
       #1step;
       ref_step();
@@ -340,14 +340,14 @@ module test #(
 
     repeat (8) begin
       // Enable pulse.
-      vif.cb.enable_i <= 1'b1;
+      vif.enable_i <= 1'b1;
       @(posedge vif.clk_i);
       #1step;
       ref_step();
       check_output("TC-SEQ-03-en");
 
       // Hold pulse.
-      vif.cb.enable_i <= 1'b0;
+      vif.enable_i <= 1'b0;
       @(posedge vif.clk_i);
       #1step;
       // ref model does NOT advance; DUT must hold.
@@ -382,7 +382,7 @@ module test #(
     apply_reset();
     drive_enable(5, "TC-HLD-02-advance", .check(1'b0));
     // Hold 5 cycles (ref model freezes, DUT must freeze too).
-    vif.cb.enable_i <= 1'b0;
+    vif.enable_i <= 1'b0;
     repeat (5) @(posedge vif.clk_i);
     // Resume and check next 4 values against the reference model.
     drive_enable(4, "TC-HLD-02-resume");
@@ -400,7 +400,7 @@ module test #(
     apply_reset();
     drive_enable(6, "TC-HLD-03-advance", .check(1'b0));
     // Enter hold.
-    vif.cb.enable_i <= 1'b0;
+    vif.enable_i <= 1'b0;
     @(posedge vif.clk_i);
     // Assert reset while in hold.
     #3ns;
