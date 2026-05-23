@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 // -----------------------------------------------------------------------------
-// Module   : fib_gen
+// Module   : fibonacci
 // File     : rtl/fibonacci.sv
 // ID       : rtl8
 // Project  : fibonacci-seq-gen
@@ -19,60 +19,61 @@
 //   F(0) = 0,  F(1) = 1,  F(n) = F(n-1) + F(n-2)  for n >= 2
 //
 // State transition on rising clock edge:
-//   - reset  : a <= 0,  b <= 1          → fib_out = 0
-//   - enable : a <= b,  b <= a + b      → fib_out advances
-//   - hold   : a <= a,  b <= b          → fib_out unchanged
+//   - reset  : a <= 0,  b <= 1        (fib_out_o = 0)
+//   - enable : a <= b,  b <= a + b    (fib_out_o advances)
+//   - hold   : a <= a,  b <= b        (fib_out_o unchanged)
 //
 // Output convention:
-//   fib_out is a registered copy of 'a', updated on each enabled clock edge.
-//   The output is 0 after reset and follows the sequence 0,1,1,2,3,5,8,...
-//   when enable is continuously asserted.
+//   fib_out_o reflects register 'a' directly via continuous assignment.
+//   Value is 0 after reset and follows 0,1,1,2,3,5,8,... when enable is
+//   continuously asserted.
 //
 // Overflow behaviour:
-//   Arithmetic is unsigned and wraps naturally at 2^W. No saturation logic is
-//   included. The verification model mirrors this behaviour (see verif_plan.md).
+//   Arithmetic is unsigned and wraps at 2^W (natural truncation). No saturation
+//   logic is included. The reference model mirrors this (see verif_plan.md).
 //
 // Parameters
 // ----------
-//   W : integer — Output and internal register width in bits (default 32).
+//   W : int unsigned — Data width in bits for output and internal registers.
+//                      Default: 32.
 //
 // Ports
 // -----
-//   clk     : i 1   System clock, active on rising edge.
-//   rst_n   : i 1   Asynchronous reset, active-low.
-//   enable  : i 1   Sequence advance enable, active-high.
-//   fib_out : o W   Current Fibonacci value.
+//   clk_i     : i  1    System clock, active rising edge.
+//   rst_ni    : i  1    Asynchronous reset, active-low.
+//   enable_i  : i  1    Sequence advance enable, active-high.
+//   fib_out_o : o  W    Current Fibonacci value.
 //
 // -----------------------------------------------------------------------------
 
 `default_nettype none
 
-module fib_gen #(
+module fibonacci #(
   parameter int unsigned W = 32
 ) (
-  input  logic             clk,
-  input  logic             rst_n,
-  input  logic             enable,
-  output logic [W-1:0]     fib_out
+  input  logic             clk_i,
+  input  logic             rst_ni,
+  input  logic             enable_i,
+  output logic [W-1:0]     fib_out_o
 );
 
   // ---------------------------------------------------------------------------
   // Signal declarations
   // ---------------------------------------------------------------------------
 
-  // State registers.
-  // a : holds the current Fibonacci value  → driven to fib_out.
-  // b : holds the next Fibonacci value     → loaded into a on next advance.
+  // State registers:
+  //   a — current Fibonacci value, driven to fib_out_o.
+  //   b — next Fibonacci value, loaded into a on the next advance.
   logic [W-1:0] a, b;
 
-  // Combinational next-state for b: computed as a + b (unsigned, wraps at 2^W).
+  // Combinational adder result: a + b (unsigned, wraps at 2^W).
   logic [W-1:0] next_b;
 
   // ---------------------------------------------------------------------------
   // Combinational logic — next value of b
   //
-  // Separating the adder into an always_comb block makes the intent explicit
-  // and allows synthesis tools to optimise the adder independently.
+  // Kept in a dedicated always_comb block so the adder is clearly separated
+  // from the sequential state and synthesis can optimise it independently.
   // ---------------------------------------------------------------------------
   always_comb begin : comb_sum
     next_b = a + b;
@@ -81,30 +82,29 @@ module fib_gen #(
   // ---------------------------------------------------------------------------
   // Sequential logic — state registers a and b
   //
-  // Reset  (asynchronous, active-low): initialise to produce sequence
-  //        starting with 0,1,1,2,3,5,...  → a=0, b=1 so fib_out=0 at reset.
-  // Enable (synchronous, active-high) : advance the recurrence.
-  // Hold   (enable de-asserted)        : retain current state.
+  // Reset  (asynchronous, active-low): a=0, b=1 initialises the recurrence
+  //        so that fib_out_o=0 at reset and the first enabled output is 1.
+  // Enable (synchronous, active-high): advance the Fibonacci recurrence.
+  // Hold   (enable de-asserted):       implicit — FF retains previous state.
   // ---------------------------------------------------------------------------
-  always_ff @(posedge clk or negedge rst_n) begin : seq_regs
-    if (!rst_n) begin
-      a <= '0;          // fib_out = 0 after reset  (REQ: RST-001)
-      b <= {{(W-1){1'b0}}, 1'b1};  // b = 1 so next advance yields F(1)=1
-    end else if (enable) begin
-      a <= b;           // advance: current becomes previous next (REQ: SEQ-001)
-      b <= next_b;      // next becomes a+b                      (REQ: SEQ-002)
+  always_ff @(posedge clk_i or negedge rst_ni) begin : seq_regs
+    if (!rst_ni) begin
+      a <= '0;                          // fib_out_o = 0 after reset  [RST-001]
+      b <= W'(1);                       // b = 1 → first advance yields F(1)=1
+    end else if (enable_i) begin
+      a <= b;                           // advance: a ← b             [SEQ-001]
+      b <= next_b;                      // advance: b ← a+b           [SEQ-002]
     end
-    // else: hold — implicit retention of a and b               (REQ: HLD-001)
+    // else: hold — FF retains a and b implicitly                    [HLD-001]
   end
 
   // ---------------------------------------------------------------------------
   // Output assignment
   //
-  // fib_out is the registered value of 'a'. No additional logic on the output
-  // path keeps the timing clean and avoids glitches on hold cycles.
+  // Direct continuous assignment; no extra logic on the output path.
   // ---------------------------------------------------------------------------
-  assign fib_out = a;
+  assign fib_out_o = a;
 
-endmodule : fib_gen
+endmodule : fibonacci
 
 `default_nettype wire
