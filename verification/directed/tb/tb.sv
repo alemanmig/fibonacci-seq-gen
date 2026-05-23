@@ -63,7 +63,9 @@ module tb;
     .clk_i     (clk_i),
     .rst_ni    (rst_ni),
     .enable_i  (enable_i),
-    .fib_out_o (fib_out_o)
+    .fib_out_o (fib_out_o),
+    .a_i       (a),        // internal state register — visible in DUT scope
+    .b_i       (b)         // internal state register — visible in DUT scope
   );
 
   // ---------------------------------------------------------------------------
