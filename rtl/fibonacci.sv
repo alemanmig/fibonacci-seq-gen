@@ -49,62 +49,28 @@
 `default_nettype none
 
 module fibonacci #(
-  parameter int unsigned W = 32
-) (
-  input  logic             clk_i,
-  input  logic             rst_ni,
-  input  logic             enable_i,
-  output logic [W-1:0]     fib_out_o
+  parameter W = 16
+)(
+  input  logic          clk_i,
+  input  logic          rst_ni,
+  input  logic          enable_i,
+  output logic [W-1:0]  fib_out_o
 );
-
-  // ---------------------------------------------------------------------------
-  // Signal declarations
-  // ---------------------------------------------------------------------------
-
-  // State registers:
-  //   a — current Fibonacci value, driven to fib_out_o.
-  //   b — next Fibonacci value, loaded into a on the next advance.
   logic [W-1:0] a, b;
 
-  // Combinational adder result: a + b (unsigned, wraps at 2^W).
-  logic [W-1:0] next_b;
-
-  // ---------------------------------------------------------------------------
-  // Combinational logic — next value of b
-  //
-  // Kept in a dedicated always_comb block so the adder is clearly separated
-  // from the sequential state and synthesis can optimise it independently.
-  // ---------------------------------------------------------------------------
-  always_comb begin : comb_sum
-    next_b = a + b;
-  end
-
-  // ---------------------------------------------------------------------------
-  // Sequential logic — state registers a and b
-  //
-  // Reset  (asynchronous, active-low): a=0, b=1 initialises the recurrence
-  //        so that fib_out_o=0 at reset and the first enabled output is 1.
-  // Enable (synchronous, active-high): advance the Fibonacci recurrence.
-  // Hold   (enable de-asserted):       implicit — FF retains previous state.
-  // ---------------------------------------------------------------------------
-  always_ff @(posedge clk_i or negedge rst_ni) begin : seq_regs
+  // a=0, b=1 on reset → outputs: 0, 1, 1, 2, 3, 5, ...
+  always_ff @(posedge clk_i or negedge rst_ni) begin
     if (!rst_ni) begin
-      a <= '0;                          // fib_out_o = 0 after reset  [RST-001]
-      b <= W'(1);                       // b = 1 → first advance yields F(1)=1
+      a <= '0;
+      b <= 1;
     end else if (enable_i) begin
-      a <= b;                           // advance: a ← b             [SEQ-001]
-      b <= next_b;                      // advance: b ← a+b           [SEQ-002]
+      a <= b;
+      b <= a + b;
     end
-    // else: hold — FF retains a and b implicitly                    [HLD-001]
   end
 
-  // ---------------------------------------------------------------------------
-  // Output assignment
-  //
-  // Direct continuous assignment; no extra logic on the output path.
-  // ---------------------------------------------------------------------------
   assign fib_out_o = a;
-
+  
 endmodule : fibonacci
 
 `default_nettype wire
