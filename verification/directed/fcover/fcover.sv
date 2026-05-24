@@ -162,9 +162,9 @@ module fcover #(
     // ensures the full recurrence state space is exercised.
     cp_b_value : coverpoint b_i {
       bins zero         = {0};
-      bins small        = {[1:610]};
-      bins medium       = {[611:75025]};
-      bins large        = {[75026:$]};
+      bins small_b        = {[1:610]};
+      bins medium_b       = {[611:75025]};
+      bins large_b        = {[75026:$]};
     }
 
     // ── 7. Enable run length ─────────────────────────────────────────────────
