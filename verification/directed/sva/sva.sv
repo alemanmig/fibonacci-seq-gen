@@ -3,24 +3,45 @@ module sva (
   input logic             clk,
   input logic             rst_n,
   input logic             enable,
-  input logic [W-1:0]     fib_out
+  input logic [W-1:0]     fib_out,
+  input logic [W-1:0]     a,
+  input logic [W-1:0]     b
 );
+
+logic [W-1:0] Last_out;
+
+always  @(posedge clk, negedge rst_n) begin
+  if  (!rst_n)  begin
+    Last_out  <= '0;
+  end
+  else  begin
+    if  (enable)  begin
+      Last_out  <=  fib_out;
+    end
+  end
+end
+
+property  seq_proper;
+  @(posedge clk)
+    disable iff(!rst_n  ||  (fib_out ==  'd0) ||  (Last_out == 'd0))
+      enable  |=> fib_out ==  $past(fib_out)  + $past(Last_out);
+endproperty
 
 property  Rst_proper;
   @(negedge rst_n or posedge clk)
-    !rst_n  |-> (fib_out==='d0);
+    !rst_n  |-> (fib_out=='d0);
 endproperty
 
 property  Begin_proper;
   @(posedge clk)
     disable iff(!rst_n)
-      ((enable===1'b1) &&  (fib_out==='d0)) &&  (rst_n===1'b1)  |=> ($rose(fib_out));
+      ((enable==1'b1) &&  (fib_out=='d0)) &&  (rst_n==1'b1)  |=> ($rose(fib_out));
 endproperty
 
 property  Double_one_proper;
   @(posedge clk)
     disable iff(!rst_n)
-      ((enable===1'b1)  &&  (fib_out==='d1) &&  ($past(fib_out)==='d0)) |=> (fib_out==='d1);
+      ((enable==1'b1)  &&  (fib_out=='d1) &&  ($past(fib_out)=='d0)) |=> (fib_out=='d1);
 endproperty
 
 property  First_seq_proper;
@@ -32,6 +53,12 @@ property  First_seq_proper;
         (($past(fib_out,1)=='d2)  &&  ($past(enable,1)==1'b1))  &&
         ((fib_out=='d3)           &&  (enable==1'b1)))  |=>
       (fib_out=='d5);
+endproperty
+
+property  Hold_proper;
+  @(posedge clk)
+    disable iff(!rst_n || !$past(rst_n))
+      (!enable  && $stable(enable)  &&  $stable(rst_n)) |-> $stable(fib_out);
 endproperty
 
 Rst_Assert  : assert  property(Rst_proper)
@@ -54,4 +81,16 @@ First_full_seq_assert : assert  property(First_seq_proper)
 else
   $error("Primera secuencia incorrecta");
 
+Hold_assert : assert  property(Hold_proper)
+  $info("Salida estable durante HOLD");
+else
+  $error("Salida NO estable durante HOLD");
+
+seq_assert  : assert  property(seq_proper)
+  $info("Secuencia correcta");
+else
+  $error("Secuencia incorrecta");
+
 endmodule
+
+bind fib_gen  sva sva_fibgen(.*);

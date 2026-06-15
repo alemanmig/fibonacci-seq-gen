@@ -23,12 +23,17 @@ ROOT_DIR    := $(CURDIR)
 RUN_DIR     := $(ROOT_DIR)/sim
 LOGS_DIR    := $(ROOT_DIR)/logs
 COV_DIR     := $(ROOT_DIR)/cov
+REPO_DIR    := $(RUN_DIR)/reports
+OUT_DIR     := $(RUN_DIR)/outputs
+CONS_DIR    := $(ROOT_DIR)/constraints
 SCRIPTS_DIR := $(TB_DIR)/scripts
 VERDI_DIR   := $(SCRIPTS_DIR)/verdi
 RTL_DIR     := $(GIT_DIR)/rtl
 DPI_DIR     := $(TB_DIR)/dpi
 REGR_DIR    := $(ROOT_DIR)/regression
 MERGE_DIR   := $(ROOT_DIR)/merge_cov
+INPUTS_DIR   = $(RTL_DIR)
+DB_DIR       = /home/share/gf180mcuD/libs.ref/gf180mcu_fd_sc_mcu7t5v0/db
 
 # TB configurations
 TEST ?= top_test
@@ -87,11 +92,19 @@ endif
 # ==============================  TOOLS SETUP  ================================
 
 # Files
-RTL_FILES = $(RTL_DIR)/fibonacci.sv
-SVE = -F $(TB_DIR)/sve.f
-VERDI_FILE = $(VERDI_DIR)/verdi.tcl
-DPI_FILE = $(DPI_DIR)/dpi.cpp
+RTL_FILES	= -F $(RTL_DIR)/rtl.f
+SVE			= -F $(TB_DIR)/sve.f
+VERDI_FILE	= $(VERDI_DIR)/verdi.tcl
+DPI_FILE	= $(DPI_DIR)/dpi.cpp
 WAVE_FILE	:= $(ROOT_DIR)/signal.rc
+DESIGN_NAME	= fib_gen
+PDK_NAME	= gf180mcu
+DB_LIB      = gf180mcu_fd_sc_mcu7t5v0__tt_025C_1v80.db
+SVA_FILE	= $(TB_DIR)/sva/sva.sv
+PARAMS		= W=16
+CLK_VAL     = 100
+PKG_FILE	= $(TB_DIR)/sv/config_pkg.sv
+WAVE_FILE	= $(ROOT_DIR)/signal.rc
 
 # Synopsys VCS/SIMV options
 FILES = $(RTL_FILES) $(SVE) 
@@ -133,6 +146,11 @@ NC    := \033[0m
 # Synopsys tools
 SYNOPSYS_TOOLS = vcs urg verdi wv
 
+# ================================  TCL  ==================================
+FPV_TCL_TEMPLATE = $(SCRIPTS_DIR)/Templates/fpv.tcl.in
+FPV_TCL          = $(SCRIPTS_DIR)/FPV/fpv.tcl
+SYN_TCL_TEMPLATE = $(SCRIPTS_DIR)/Templates/syn.tcl.in
+SYN_TCL          = $(SCRIPTS_DIR)/synthesis/syn.tcl
 # ================================  TARGETS  ==================================
 
 SHELL         := bash
@@ -200,12 +218,69 @@ vars: ## TB: Print Makefile variables
 new-coverage:	clean compile sim cov verdi-cov
 
 #______________________________________________________________________________
+.PHONY:clean-all
+clean-all:	clean clean-logs clean-wave clean-tcl
+
+#______________________________________________________________________________
 .PHONY:new-sim
 new-sim:	clean compile sim cov verdi
 
 #______________________________________________________________________________
 .PHONY:new-sim-wave
 new-sim-wave:	clean compile sim cov verdi-wave
+
+#______________________________________________________________________________
+.PHONY:run-fpv-all
+run-fpv-all:	clean compile gen-tcl fpv
+
+#______________________________________________________________________________
+.PHONY: gen-tcl
+gen-tcl:
+	@echo -e "$(C_ORA)Generating all TCL$(NC)"
+	@mkdir -p $(dir $(FPV_TCL))
+	@sed \
+		-e 's|@DESIGN_NAME@|$(DESIGN_NAME)|g' \
+		-e 's|@INPUTS_DIR@|$(INPUTS_DIR)|g' \
+		-e 's|@PKG_FILE@|$(PKG_FILE)|g' \
+		-e 's|@SVA_FILE@|$(SVA_FILE)|g' \
+		-e 's|@PARAMS@|$(PARAMS)|g' \
+		$(FPV_TCL_TEMPLATE) > $(FPV_TCL)
+	@mkdir -p $(dir $(SYN_TCL))
+	@sed \
+		-e 's|@DESIGN_NAME@|$(DESIGN_NAME)|g' \
+		-e 's|@PDK_NAME@|$(PDK_NAME)|g' \
+		-e 's|@RTL_PATH@|$(INPUTS_DIR)|g' \
+		-e 's|@REP_DIR@|$(REPO_DIR)|g' \
+		-e 's|@OUT_DIR@|$(OUT_DIR)|g' \
+		-e 's|@CONS_DIR@|$(CONS_DIR)|g' \
+		-e 's|@DB_PATH@|$(DB_DIR)|g' \
+		-e 's|@DB_LIB@|$(DB_LIB)|g' \
+		-e 's|@PARAMS@|$(PARAMS)|g' \
+		-e 's|@CLK_VAL@|$(CLK_VAL)|g' \
+		$(SYN_TCL_TEMPLATE) > $(SYN_TCL)
+
+#______________________________________________________________________________
+.PHONY: fpv
+fpv:
+	@echo -e "$(C_ORA)Running FPV$(NC)"
+	cd $(RUN_DIR) && vcf -f $(FPV_TCL) -gui &
+
+#______________________________________________________________________________
+.PHONY: synt
+synt:
+	@echo -e "$(C_ORA)Running Synthesis$(NC)"
+	@echo "Se iniciará dc_shell y la terminal quedará en modo interactivo."
+	@read -p "¿Desea continuar? [y/N]: " ans; \
+	if [ "$$ans" != "y" ] && [ "$$ans" != "Y" ]; then \
+		echo "Operación cancelada."; \
+		exit 1; \
+	fi
+	@mkdir -p $(REPO_DIR)
+	@mkdir -p $(OUT_DIR)
+	@mkdir -p $(CONS_DIR)
+	cd $(RUN_DIR) && dc_shell -f $(SYN_TCL)
+
+#______________________________________________________________________________
 
 .PHONY: compile
 compile: ## TB: Runs VCS compilation
@@ -228,6 +303,7 @@ sim: ## TB: Runs simv simulation
 verdi: ## TB: Opens Verdi GUI
 	@echo -e "$(C_ORA)TB: Openning Verdi$(NC)"
 	cd $(RUN_DIR) && verdi $(VERDI_FLAGS) &
+
 #______________________________________________________________________________
 
 .PHONY: verdi-wave
@@ -267,13 +343,25 @@ compile-dpi: ## TB: Run dpi (C/C++) compilation
 .PHONY: clean
 clean: ## TB: Remove all simulation files
 	@echo -e "$(C_ORA)TB: Removing all simulation files$(NC)"
-	rm -rf $(RUN_DIR) $(LOGS_DIR) $(COV_DIR)
+	rm -rf $(RUN_DIR) $(LOGS_DIR) $(COV_DIR) $(CONS_DIR)
+#______________________________________________________________________________
+
+.PHONY: clean-wave
+clean-wave: ## TB: Remove all simulation files
+	@echo -e "$(C_ORA)TB: Removing all simulation files$(NC)"
+	rm -f $(WAVE_FILE)
 #______________________________________________________________________________
 
 .PHONY: clean-logs
 clean-logs: ## TB: Remove logs
 	@echo -e "$(C_ORA)TB: Removing all logs files$(NC)"
 	rm -rf $(LOGS_DIR)
+#______________________________________________________________________________
+
+.PHONY: clean-tcl
+clean-tcl: ## TB: Remove logs
+	@echo -e "$(C_ORA)TB: Removing all tcl generated files$(NC)"
+	rm -f $(FPV_TCL) $(SYN_TCL)
 #______________________________________________________________________________
 
 .PHONY: fsdb2vcd

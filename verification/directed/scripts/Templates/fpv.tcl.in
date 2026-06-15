@@ -1,0 +1,30 @@
+#----------------------------------------------------------------
+# Search Path and Logic Library Setup
+#----------------------------------------------------------------
+
+set DESIGN_NAME "@DESIGN_NAME@"
+set INPUTS_DIR "@INPUTS_DIR@"
+set_fml_appmode FPV
+
+#----------------------------------------------------------------
+# Analyze RTL & Properties
+#----------------------------------------------------------------
+
+analyze -vcs $INPUTS_DIR/$DESIGN_NAME.sv -format sverilog
+analyze -format sverilog @PKG_FILE@
+analyze -format sverilog @SVA_FILE@
+
+#----------------------------------------------------------------
+# ELABORATE
+#----------------------------------------------------------------
+
+elaborate $DESIGN_NAME -parameters {@PARAMS@} -sva
+
+create_clock -name clk {clk} -period 10
+create_reset rst_n -async -sense low
+
+#----------------------------------------------------------------
+# Run Verification
+#----------------------------------------------------------------
+
+check_fv

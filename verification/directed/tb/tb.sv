@@ -27,12 +27,7 @@ module tb;
   );
 
 bind dut sva
-dut_sva (
-  .clk      (vif.clk),
-  .rst_n    (vif.rst_n),
-  .enable   (vif.enable),
-  .fib_out  (vif.fib_out)
-);
+dut_sva (.*);
 
 bind dut fcover
 dut_fcover (

@@ -1,0 +1,92 @@
+#································································
+# Centro de Investigación en Computación - IPN
+# Project:	DESIGN_NAME
+# File: 	Logic Synthesis TCL Script
+# Author:	Dr. Benito Granados Rojas
+#································································
+
+#----------------------------------------------------------------
+# Search Path and Logic Library Setup
+#----------------------------------------------------------------
+set DESIGN_NAME "@DESIGN_NAME@"
+set PDK_NAME "@PDK_NAME@"
+set RTL_PATH "@RTL_PATH@"
+SET REP_DIR "@REP_DIR@"
+SET OUT_DIR "@OUT_DIR@"
+SET CONS_DIR "@CONS_DIR@"
+
+set_app_var search_path "$search_path . $RTL_PATH @DB_PATH@"
+
+set_app_var target_library "@DB_LIB@"
+							
+set_app_var link_library "* $target_library"
+#----------------------------------------------------------------
+# RTL Reading and Link
+#----------------------------------------------------------------
+analyze -format sverilog $DESIGN_NAME.sv
+elaborate ${DESIGN_NAME} -parameters {@PARAMS@}
+
+link
+
+#----------------------------------------------------------------
+# Constraints Setup
+#----------------------------------------------------------------
+
+set clk_val @CLK_VAL@
+create_clock 			-period 		[expr $clk_val] 		[get_ports clk]
+set_clock_uncertainty 	-setup 			[expr $clk_val*0.1] 	[get_clocks clk]
+set_clock_transition 	-max 			[expr $clk_val*0.1] 	[get_clocks  clk]
+set_clock_latency 		-source -max 	[expr $clk_val*0.05] 	[get_clocks clk]
+set_clock_latency 		-max 			[expr $clk_val*0.03]	[get_clocks clk]
+set_input_delay 		-max 			[expr $clk_val*0.05]	-clock clk 	[remove_from_collection [all_inputs]  clk]
+set_input_delay 		-min 			[expr $clk_val*0.01]	-clock clk 	[remove_from_collection [all_inputs]  clk]
+set_output_delay 		-max 			[expr $clk_val*0.05]	-clock clk 	[all_outputs]
+set_load 				-max 			[expr {40.0/1000.0}]	[all_outputs]
+set_input_transition 	-min 			[expr $clk_val*0.01]	[all_inputs]
+set_input_transition 	-max 			[expr $clk_val*0.1]		[all_inputs]
+
+#----------------------------------------------------------------
+# Pre-compile Reports
+#----------------------------------------------------------------
+
+report_clock > $REP_DIR/report_clock_${PDK_NAME}.rpt
+report_clock -skew > $REP_DIR/report_clock_${PDK_NAME}.rpt
+report_port -verbose > $REP_DIR/report_port_${PDK_NAME}.rpt
+check_timing
+check_design
+
+#----------------------------------------------------------------
+# Compile/Synthesis
+#----------------------------------------------------------------
+
+compile_ultra -no_autoungroup -incremental
+optimize_netlist -area
+
+#----------------------------------------------------------------
+# Post-compile Reports
+#----------------------------------------------------------------
+
+report_area > $REP_DIR/report_area_${PDK_NAME}.rpt
+report_qor > $REP_DIR/report_qor_${PDK_NAME}.rpt
+report_constraint -all_violators > $REP_DIR/report_constraints_${PDK_NAME}.rpt
+report_timing > $REP_DIR/report_timing_${PDK_NAME}.rpt
+report_power > $REP_DIR/report_power_${PDK_NAME}.rpt
+
+#----------------------------------------------------------------
+# Save Design
+#----------------------------------------------------------------
+
+write_file -format verilog -hier -out $OUT_DIR/mapped_${DESIGN_NAME}_${PDK_NAME}.v
+write_file -format ddc -hier -out $OUT_DIR/mapped_${DESIGN_NAME}_${PDK_NAME}.ddc
+
+write_sdf -version 2.1 $CONS_DIR/mapped_${DESIGN_NAME}_${PDK_NAME}.sdf
+write_sdc -version 2.2 $CONS_DIR/mapped_${DESIGN_NAME}_${PDK_NAME}.sdc
+
+#----------------------------------------------------------------
+# Check Design
+#----------------------------------------------------------------
+
+check_design
+
+return
+exit
